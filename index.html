@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex学習Wiki</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">Cx</div>
+          <div>
+            <h1>Codex学習Wiki</h1>
+            <p>APIなし。範囲選択からCodex生成依頼を作り、文書をつないで学ぶ。</p>
+          </div>
+        </div>
+
+        <form class="topic-form" id="topicForm">
+          <label class="sr-only" for="topicInput">題材</label>
+          <input id="topicInput" type="text" value="CFD" autocomplete="off" />
+          <button class="primary-button" type="submit">開く / 依頼</button>
+        </form>
+      </header>
+
+      <main class="layout">
+        <aside class="sidebar" aria-label="文書一覧">
+          <section class="panel guide-panel">
+            <div class="panel-heading">
+              <h2>Codex生成</h2>
+              <span class="status-pill ready">API不要</span>
+            </div>
+            <p class="muted small">
+              本文の文字を範囲選択して右クリックすると、Codex用の生成依頼が作られます。
+              このチャットで「生成して」と送ると、Codexが文書データを追加できます。
+            </p>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>文書</h2>
+              <button class="icon-button" id="newButton" type="button" title="題材入力へ" aria-label="題材入力へ">＋</button>
+            </div>
+            <input id="searchInput" type="search" placeholder="文書を検索" />
+            <div class="doc-list" id="docList"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>概念リンク</h2>
+              <span class="count" id="conceptCount">0</span>
+            </div>
+            <div class="concept-list" id="conceptList"></div>
+          </section>
+        </aside>
+
+        <section class="reader" aria-label="本文">
+          <div class="reader-toolbar">
+            <div>
+              <div class="breadcrumb" id="breadcrumb"></div>
+              <h2 id="docTitle">文書を読み込み中</h2>
+              <p id="docSummary"></p>
+            </div>
+            <div class="reader-actions">
+              <button class="secondary-button" id="requestDocButton" type="button">この文書を深掘り</button>
+              <button class="secondary-button" id="exportButton" type="button">書き出し</button>
+            </div>
+          </div>
+
+          <div class="notice" id="notice" hidden></div>
+
+          <section class="request-panel" id="requestPanel" hidden>
+            <div class="request-callout" id="requestCallout" role="status" aria-live="polite">
+              生成依頼を作成しました。このチャットで「生成して」と送るとCodexが文書を追加できます。
+            </div>
+            <div class="request-header">
+              <div>
+                <span class="eyebrow">Codex Request</span>
+                <h3 id="requestTitle">生成依頼</h3>
+                <p id="requestMeta"></p>
+              </div>
+              <button class="icon-button" id="closeRequestButton" type="button" title="閉じる" aria-label="閉じる">×</button>
+            </div>
+            <textarea id="requestPrompt" rows="8" readonly></textarea>
+            <div class="button-row">
+              <button class="primary-button" id="copyRequestButton" type="button">依頼文をコピー</button>
+              <button class="secondary-button" id="copyHashButton" type="button">URL依頼をコピー</button>
+            </div>
+            <p class="copy-status" id="copyStatus" role="status" aria-live="polite"></p>
+          </section>
+
+          <article class="document" id="documentBody"></article>
+
+          <section class="element-section" id="elementSection">
+            <div class="section-heading">
+              <h3>この解説を理解するための細かい要素</h3>
+              <p>文書ありなら開きます。未生成の要素はCodex生成依頼を作ります。</p>
+            </div>
+            <div class="element-list" id="elementList"></div>
+          </section>
+        </section>
+
+        <aside class="inspector" aria-label="文書情報">
+          <section class="panel">
+            <h2>現在の文書</h2>
+            <dl class="meta-list">
+              <div>
+                <dt>文書ID</dt>
+                <dd id="metaId">-</dd>
+              </div>
+              <div>
+                <dt>親文書</dt>
+                <dd id="metaParents">-</dd>
+              </div>
+              <div>
+                <dt>子文書</dt>
+                <dd id="metaChildren">-</dd>
+              </div>
+              <div>
+                <dt>更新</dt>
+                <dd id="metaUpdated">-</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="panel">
+            <h2>範囲選択</h2>
+            <p class="muted small">
+              本文中の分からない語句をドラッグして選択し、その上で右クリックしてください。
+              既存文書があれば開き、なければCodex生成依頼を作ります。
+            </p>
+          </section>
+
+          <section class="panel">
+            <h2>保存方式</h2>
+            <p class="muted small">
+              文書の実体は <code>data.js</code> です。Codexがこのファイルを編集するので、外部APIキーは不要です。
+            </p>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

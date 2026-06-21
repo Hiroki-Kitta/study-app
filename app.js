@@ -1,0 +1,722 @@
+const UI_STORAGE_KEY = "codex-study-wiki-ui-v1";
+
+const els = {
+  topicForm: document.querySelector("#topicForm"),
+  topicInput: document.querySelector("#topicInput"),
+  newButton: document.querySelector("#newButton"),
+  searchInput: document.querySelector("#searchInput"),
+  docList: document.querySelector("#docList"),
+  conceptList: document.querySelector("#conceptList"),
+  conceptCount: document.querySelector("#conceptCount"),
+  breadcrumb: document.querySelector("#breadcrumb"),
+  docTitle: document.querySelector("#docTitle"),
+  docSummary: document.querySelector("#docSummary"),
+  requestDocButton: document.querySelector("#requestDocButton"),
+  exportButton: document.querySelector("#exportButton"),
+  notice: document.querySelector("#notice"),
+  requestPanel: document.querySelector("#requestPanel"),
+  requestTitle: document.querySelector("#requestTitle"),
+  requestMeta: document.querySelector("#requestMeta"),
+  requestPrompt: document.querySelector("#requestPrompt"),
+  copyRequestButton: document.querySelector("#copyRequestButton"),
+  copyHashButton: document.querySelector("#copyHashButton"),
+  copyStatus: document.querySelector("#copyStatus"),
+  closeRequestButton: document.querySelector("#closeRequestButton"),
+  documentBody: document.querySelector("#documentBody"),
+  elementSection: document.querySelector("#elementSection"),
+  elementList: document.querySelector("#elementList"),
+  metaId: document.querySelector("#metaId"),
+  metaParents: document.querySelector("#metaParents"),
+  metaChildren: document.querySelector("#metaChildren"),
+  metaUpdated: document.querySelector("#metaUpdated")
+};
+
+const state = {
+  data: normalizeData(window.STUDY_WIKI_DATA || { docs: {} }),
+  currentId: null,
+  pendingRequest: null
+};
+
+loadUiState();
+readHashRequest();
+render();
+bindEvents();
+
+function bindEvents() {
+  els.topicForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const topic = els.topicInput.value.trim();
+    if (!topic) return;
+    openOrRequestTopic(topic);
+  });
+
+  els.newButton.addEventListener("click", () => {
+    els.topicInput.focus();
+    els.topicInput.select();
+  });
+
+  els.searchInput.addEventListener("input", renderDocList);
+
+  els.requestDocButton.addEventListener("click", () => {
+    const doc = currentDoc();
+    if (!doc) return;
+    createCodexRequest({
+      label: `${doc.title}の詳細分解`,
+      parentDoc: doc,
+      reason: "現在の文書をさらに細かく分解して理解するため。",
+      source: "document-action"
+    });
+  });
+
+  els.exportButton.addEventListener("click", exportData);
+
+  els.copyRequestButton.addEventListener("click", async () => {
+    if (!state.pendingRequest) return;
+    const result = await copyText(state.pendingRequest.prompt);
+    showCopyResult(result, "依頼文");
+  });
+
+  els.copyHashButton.addEventListener("click", async () => {
+    const result = await copyText(window.location.href);
+    showCopyResult(result, "URL依頼");
+  });
+
+  els.closeRequestButton.addEventListener("click", () => {
+    state.pendingRequest = null;
+    if (location.hash.startsWith("#codex-request=")) {
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+    renderRequestPanel();
+  });
+
+  els.documentBody.addEventListener("contextmenu", (event) => {
+    const selectedText = getSelectedText();
+    if (!selectedText) return;
+    event.preventDefault();
+    requestFromSelection(selectedText);
+  });
+}
+
+function openOrRequestTopic(topic) {
+  const existing = findDocByConcept(topic);
+  if (existing) {
+    openDoc(existing.id);
+    return;
+  }
+
+  createCodexRequest({
+    label: topic,
+    parentDoc: null,
+    reason: "新しいルート題材として文書を作るため。",
+    source: "topic"
+  });
+}
+
+function requestFromSelection(selectedText) {
+  const label = cleanupSelection(selectedText);
+  if (!label) return;
+
+  const existing = findDocByConcept(label);
+  if (existing) {
+    openDoc(existing.id);
+    showNotice(`「${label}」の既存文書を開きました。`);
+    return;
+  }
+
+  createCodexRequest({
+    label,
+    parentDoc: currentDoc(),
+    reason: "本文中で選択した語句を理解するため。",
+    source: "selection"
+  });
+}
+
+function createCodexRequest({ label, parentDoc, reason, source }) {
+  const request = {
+    version: 1,
+    action: "generate-doc",
+    label,
+    key: conceptKey(label),
+    source,
+    reason,
+    parentId: parentDoc?.id || null,
+    parentTitle: parentDoc?.title || null,
+    parentSummary: parentDoc?.summary || null,
+    selectionText: source === "selection" ? label : null,
+    createdAt: new Date().toISOString()
+  };
+  request.prompt = buildCodexPrompt(request, parentDoc);
+  state.pendingRequest = request;
+  updateRequestHash(request);
+  renderRequestPanel();
+  emphasizeRequestPanel();
+  showNotice("Codex生成依頼を作りました。このチャットで「生成して」と送ってください。");
+}
+
+function buildCodexPrompt(request, parentDoc) {
+  const parentBlock = parentDoc
+    ? [
+        `親文書ID: ${parentDoc.id}`,
+        `親文書タイトル: ${parentDoc.title}`,
+        `親文書要約: ${parentDoc.summary}`,
+        "親文書の本文抜粋:",
+        parentDoc.markdown.slice(0, 1800)
+      ].join("\n")
+    : "親文書なし。ルート文書として作成。";
+
+  return [
+    "Codex生成依頼:",
+    `対象要素: ${request.label}`,
+    `対象key: ${request.key}`,
+    `生成元: ${request.source}`,
+    `理由: ${request.reason}`,
+    parentBlock,
+    "",
+    "作業内容:",
+    "1. data.js の window.STUDY_WIKI_DATA.docs に、この対象要素の新しい文書を追加してください。",
+    "2. 新規文書IDは英数字とハイフンの短いIDにしてください。",
+    "3. 新規文書には title, key, summary, markdown, elements, aliases, parentLinks, createdAt, updatedAt を入れてください。",
+    "4. 親文書がある場合、新規文書の parentLinks に { docId, title, elementKey, elementLabel, source } を入れてください。",
+    "5. 生成元が selection の場合、elementLabel は本文で選択された語句そのものにしてください。親本文は編集しなくても、アプリが parentLinks を見て自動で本文内リンクにします。",
+    "6. 既存文書の elements に同じ key がある場合は linkedDocId を新しい文書IDにしてください。",
+    "7. 文書は日本語で、網羅的かつ詳細に説明してください。",
+    "8. markdown本文と、理解に必要な細かい要素 8から18個を elements に入れてください。",
+    "9. 既存の data.js の書式に合わせ、外部APIやlocalStorageは使わないでください。"
+  ].join("\n");
+}
+
+function updateRequestHash(request) {
+  const hashPayload = {
+    action: request.action,
+    label: request.label,
+    key: request.key,
+    parentId: request.parentId,
+    parentTitle: request.parentTitle,
+    reason: request.reason,
+    source: request.source,
+    selectionText: request.selectionText || null
+  };
+  const encoded = encodeURIComponent(JSON.stringify(hashPayload));
+  history.replaceState(null, "", `${location.pathname}${location.search}#codex-request=${encoded}`);
+}
+
+function readHashRequest() {
+  if (!location.hash.startsWith("#codex-request=")) return;
+  try {
+    const raw = decodeURIComponent(location.hash.replace("#codex-request=", ""));
+    const request = JSON.parse(raw);
+    const parentDoc = request.parentId ? state.data.docs[request.parentId] : null;
+    request.createdAt = request.createdAt || new Date().toISOString();
+    request.prompt = buildCodexPrompt(request, parentDoc);
+    state.pendingRequest = request;
+  } catch {
+    state.pendingRequest = null;
+  }
+}
+
+function render() {
+  renderDocList();
+  renderConceptList();
+  renderCurrentDocument();
+  renderRequestPanel();
+}
+
+function renderDocList() {
+  const query = conceptKey(els.searchInput.value || "");
+  const docs = Object.values(state.data.docs)
+    .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))
+    .filter((doc) => !query || conceptKey(`${doc.title} ${doc.summary}`).includes(query));
+
+  els.docList.innerHTML = "";
+  if (!docs.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted small";
+    empty.textContent = "文書はまだありません。";
+    els.docList.append(empty);
+    return;
+  }
+
+  docs.forEach((doc) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `doc-item ${doc.id === state.currentId ? "is-active" : ""}`;
+    button.innerHTML = "<strong></strong><span></span>";
+    button.querySelector("strong").textContent = doc.title;
+    button.querySelector("span").textContent = `${doc.elements.length} 要素 / 親 ${doc.parentLinks.length}`;
+    button.addEventListener("click", () => openDoc(doc.id));
+    els.docList.append(button);
+  });
+}
+
+function renderConceptList() {
+  const docs = Object.values(state.data.docs).sort((a, b) => a.title.localeCompare(b.title, "ja"));
+  els.conceptCount.textContent = String(docs.length);
+  els.conceptList.innerHTML = "";
+
+  docs.forEach((doc) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "concept-item";
+    button.innerHTML = "<strong></strong><span></span>";
+    button.querySelector("strong").textContent = doc.title;
+    button.querySelector("span").textContent = `${incomingLinkCount(doc.id)} 箇所から参照`;
+    button.addEventListener("click", () => openDoc(doc.id));
+    els.conceptList.append(button);
+  });
+}
+
+function renderCurrentDocument() {
+  const doc = currentDoc();
+  if (!doc) {
+    els.breadcrumb.textContent = "";
+    els.docTitle.textContent = "文書がありません";
+    els.docSummary.textContent = "題材を入力するとCodex生成依頼を作れます。";
+    els.documentBody.innerHTML = "";
+    els.elementList.innerHTML = "";
+    els.elementSection.hidden = true;
+    renderMeta(null);
+    return;
+  }
+
+  els.elementSection.hidden = false;
+  els.breadcrumb.textContent = buildBreadcrumb(doc);
+  els.docTitle.textContent = doc.title;
+  els.docSummary.textContent = doc.summary;
+  renderMarkdown(doc.markdown, els.documentBody);
+  linkDocumentInline(els.documentBody, doc);
+  renderElements(doc);
+  renderMeta(doc);
+}
+
+function renderElements(doc) {
+  els.elementList.innerHTML = "";
+  doc.elements.forEach((element) => {
+    const linkedDoc = element.linkedDocId ? state.data.docs[element.linkedDocId] : findDocByConcept(element.label);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "element-button";
+    button.innerHTML = `
+      <strong></strong>
+      <span class="reason"></span>
+      <span class="element-meta">
+        <span class="tag category"></span>
+        <span class="tag difficulty"></span>
+        <span class="tag linked-state"></span>
+      </span>
+    `;
+    button.querySelector("strong").textContent = element.label;
+    button.querySelector(".reason").textContent = element.reason || "この要素を詳しく学びます。";
+    button.querySelector(".category").textContent = element.category || "その他";
+    button.querySelector(".difficulty").textContent = element.difficulty || "標準";
+    const linkedTag = button.querySelector(".linked-state");
+    linkedTag.textContent = linkedDoc ? "文書あり" : "Codex依頼";
+    linkedTag.classList.toggle("linked", Boolean(linkedDoc));
+    button.addEventListener("click", () => {
+      if (linkedDoc) {
+        openDoc(linkedDoc.id);
+      } else {
+        createCodexRequest({
+          label: element.label,
+          parentDoc: doc,
+          reason: element.reason || "この要素の解説文書を作るため。",
+          source: "element"
+        });
+      }
+    });
+    button.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      createCodexRequest({
+        label: element.label,
+        parentDoc: doc,
+        reason: element.reason || "この要素の解説文書を作るため。",
+        source: "element-contextmenu"
+      });
+    });
+    els.elementList.append(button);
+  });
+}
+
+function renderMeta(doc) {
+  if (!doc) {
+    els.metaId.textContent = "-";
+    els.metaParents.textContent = "-";
+    els.metaChildren.textContent = "-";
+    els.metaUpdated.textContent = "-";
+    return;
+  }
+
+  els.metaId.textContent = doc.id;
+  els.metaParents.textContent = doc.parentLinks.length
+    ? doc.parentLinks.map((link) => `${link.title} > ${link.elementLabel}`).join(" / ")
+    : "ルート文書";
+  const children = doc.elements.filter((item) => item.linkedDocId && state.data.docs[item.linkedDocId]);
+  els.metaChildren.textContent = children.length ? children.map((item) => item.label).join(" / ") : "なし";
+  els.metaUpdated.textContent = formatDate(doc.updatedAt);
+}
+
+function renderRequestPanel() {
+  const request = state.pendingRequest;
+  els.requestPanel.hidden = !request;
+  if (!request) return;
+  els.requestTitle.textContent = `「${request.label}」をCodexで生成`;
+  els.requestMeta.textContent = request.parentTitle
+    ? `親文書: ${request.parentTitle}`
+    : "ルート文書として作成";
+  els.requestPrompt.value = request.prompt;
+  els.copyStatus.textContent = "生成依頼が作成されています。依頼文をコピーして、このチャットに貼り付けてください。";
+  els.copyStatus.className = "copy-status";
+}
+
+function renderMarkdown(markdown, container) {
+  container.innerHTML = "";
+  const lines = String(markdown || "").replace(/\r\n/g, "\n").split("\n");
+  let paragraph = [];
+  let list = null;
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    const p = document.createElement("p");
+    p.innerHTML = renderInline(paragraph.join(" "));
+    container.append(p);
+    paragraph = [];
+  };
+
+  const flushList = () => {
+    if (!list) return;
+    container.append(list.node);
+    list = null;
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushParagraph();
+      flushList();
+      return;
+    }
+
+    const heading = /^(#{2,4})\s+(.+)$/.exec(trimmed);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      const h = document.createElement(heading[1].length === 2 ? "h2" : "h3");
+      h.innerHTML = renderInline(heading[2]);
+      container.append(h);
+      return;
+    }
+
+    const bullet = /^[-*]\s+(.+)$/.exec(trimmed);
+    const numbered = /^\d+[.)]\s+(.+)$/.exec(trimmed);
+    if (bullet || numbered) {
+      flushParagraph();
+      const type = bullet ? "ul" : "ol";
+      if (!list || list.type !== type) {
+        flushList();
+        list = { type, node: document.createElement(type) };
+      }
+      const li = document.createElement("li");
+      li.innerHTML = renderInline((bullet || numbered)[1]);
+      list.node.append(li);
+      return;
+    }
+
+    paragraph.push(trimmed);
+  });
+
+  flushParagraph();
+  flushList();
+}
+
+function renderInline(text) {
+  return escapeHtml(text)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+}
+
+function linkDocumentInline(container, doc) {
+  const targets = getInlineTargets(doc);
+  if (!targets.length) return;
+
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      if (parent.closest("button, a, code, textarea")) return NodeFilter.FILTER_REJECT;
+      return targets.some((target) => node.nodeValue.includes(target.label))
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT;
+    }
+  });
+
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach((node) => linkTextNode(node, targets));
+}
+
+function getInlineTargets(doc) {
+  const targets = [];
+  const addTarget = (label, docId) => {
+    const cleanLabel = cleanupSelection(label);
+    if (!cleanLabel || !docId || docId === doc.id || !state.data.docs[docId]) return;
+    const key = `${conceptKey(cleanLabel)}:${docId}`;
+    if (targets.some((target) => target.key === key)) return;
+    targets.push({ label: cleanLabel, docId, key });
+  };
+
+  doc.elements.forEach((element) => {
+    const linkedDoc = element.linkedDocId ? state.data.docs[element.linkedDocId] : findDocByConcept(element.label);
+    if (linkedDoc) addTarget(element.label, linkedDoc.id);
+  });
+
+  Object.values(state.data.docs).forEach((childDoc) => {
+    childDoc.parentLinks.forEach((link) => {
+      if (link.docId === doc.id) {
+        addTarget(link.elementLabel || childDoc.title, childDoc.id);
+      }
+    });
+  });
+
+  return targets.sort((a, b) => b.label.length - a.label.length);
+}
+
+function linkTextNode(textNode, targets) {
+  const text = textNode.nodeValue;
+  let best = null;
+  targets.forEach((target) => {
+    const index = text.indexOf(target.label);
+    if (index < 0) return;
+    if (!best || index < best.index || (index === best.index && target.label.length > best.target.label.length)) {
+      best = { target, index };
+    }
+  });
+  if (!best) return;
+
+  const { target, index } = best;
+  const before = text.slice(0, index);
+  const match = text.slice(index, index + target.label.length);
+  const after = text.slice(index + target.label.length);
+  const fragment = document.createDocumentFragment();
+  if (before) fragment.append(document.createTextNode(before));
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "inline-doc-link";
+  button.textContent = match;
+  button.title = `${state.data.docs[target.docId].title} を開く`;
+  button.addEventListener("click", () => openDoc(target.docId));
+  fragment.append(button);
+  if (after) fragment.append(document.createTextNode(after));
+  textNode.replaceWith(fragment);
+}
+
+function normalizeData(input) {
+  const data = {
+    version: input.version || 3,
+    currentId: input.currentId || null,
+    docs: input.docs || {}
+  };
+  Object.values(data.docs).forEach((doc) => {
+    doc.key = doc.key || conceptKey(doc.title);
+    doc.elements = Array.isArray(doc.elements) ? doc.elements : [];
+    doc.aliases = Array.isArray(doc.aliases) ? doc.aliases : [doc.title];
+    doc.parentLinks = Array.isArray(doc.parentLinks) ? doc.parentLinks : [];
+  });
+  relinkElements(data);
+  if (!data.currentId || !data.docs[data.currentId]) {
+    data.currentId = Object.keys(data.docs)[0] || null;
+  }
+  return data;
+}
+
+function relinkElements(data) {
+  const index = buildConceptIndex(data);
+  Object.values(data.docs).forEach((doc) => {
+    doc.elements.forEach((element) => {
+      element.key = element.key || conceptKey(element.label);
+      if (!element.linkedDocId && index[element.key]) {
+        element.linkedDocId = index[element.key];
+      }
+    });
+  });
+}
+
+function buildConceptIndex(data = state.data) {
+  const index = {};
+  Object.values(data.docs).forEach((doc) => {
+    [doc.key, doc.title, ...(doc.aliases || [])].forEach((name) => {
+      index[conceptKey(name)] = doc.id;
+    });
+  });
+  return index;
+}
+
+function findDocByConcept(name) {
+  const key = conceptKey(name);
+  const index = buildConceptIndex();
+  const id = index[key];
+  return id ? state.data.docs[id] || null : null;
+}
+
+function currentDoc() {
+  return state.currentId ? state.data.docs[state.currentId] || null : null;
+}
+
+function openDoc(id) {
+  if (!state.data.docs[id]) return;
+  state.currentId = id;
+  state.data.currentId = id;
+  saveUiState();
+  render();
+}
+
+function buildBreadcrumb(doc) {
+  const parent = doc.parentLinks[0];
+  return parent ? `${parent.title} / ${parent.elementLabel}` : "ルート文書";
+}
+
+function incomingLinkCount(docId) {
+  let count = 0;
+  Object.values(state.data.docs).forEach((doc) => {
+    doc.elements.forEach((element) => {
+      if (element.linkedDocId === docId) count += 1;
+    });
+  });
+  return count;
+}
+
+function exportData() {
+  const blob = new Blob([`window.STUDY_WIKI_DATA = ${JSON.stringify(state.data, null, 2)};\n`], {
+    type: "text/javascript"
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "data.js";
+  document.body.append(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function loadUiState() {
+  try {
+    const ui = JSON.parse(localStorage.getItem(UI_STORAGE_KEY) || "{}");
+    state.currentId = ui.currentId && state.data.docs[ui.currentId]
+      ? ui.currentId
+      : state.data.currentId;
+  } catch {
+    state.currentId = state.data.currentId;
+  }
+}
+
+function saveUiState() {
+  localStorage.setItem(UI_STORAGE_KEY, JSON.stringify({ currentId: state.currentId }));
+}
+
+function getSelectedText() {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed) return "";
+  return selection.toString();
+}
+
+function cleanupSelection(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .replace(/[。、「」『』]+$/g, "")
+    .trim()
+    .slice(0, 80);
+}
+
+function conceptKey(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[「」『』（）()[\]{}]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/とは$/g, "")
+    .replace(/[、。,.，．:：;；/／_-]+/g, "");
+}
+
+async function copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return { ok: true, mode: "clipboard" };
+    }
+  } catch {
+    // file:// では権限やセキュアコンテキストの制約で失敗することがあります。
+  }
+
+  try {
+    els.requestPrompt.focus();
+    els.requestPrompt.select();
+    const ok = document.execCommand("copy");
+    if (ok) return { ok: true, mode: "execCommand" };
+  } catch {
+    // 最後の手段としてテキストを選択したままにします。
+  }
+
+  els.requestPrompt.focus();
+  els.requestPrompt.select();
+  return { ok: false, mode: "manual" };
+}
+
+function showCopyResult(result, label) {
+  const copied = result.ok;
+  const message = copied
+    ? `${label}をコピーしました。`
+    : `${label}を選択しました。Ctrl+C でコピーしてください。`;
+  els.copyStatus.textContent = message;
+  els.copyStatus.className = `copy-status ${copied ? "is-success" : "is-manual"}`;
+  showNotice(message);
+
+  const button = label === "依頼文" ? els.copyRequestButton : els.copyHashButton;
+  const original = button.textContent;
+  button.textContent = copied ? "コピー済み" : "選択済み";
+  button.classList.add(copied ? "is-copied" : "is-manual");
+  clearTimeout(button.copyTimer);
+  button.copyTimer = setTimeout(() => {
+    button.textContent = original;
+    button.classList.remove("is-copied", "is-manual");
+  }, 1800);
+}
+
+function emphasizeRequestPanel() {
+  els.requestPanel.classList.remove("is-fresh");
+  requestAnimationFrame(() => {
+    els.requestPanel.classList.add("is-fresh");
+    els.requestPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  clearTimeout(emphasizeRequestPanel.timer);
+  emphasizeRequestPanel.timer = setTimeout(() => {
+    els.requestPanel.classList.remove("is-fresh");
+  }, 2800);
+}
+
+function showNotice(message) {
+  els.notice.hidden = false;
+  els.notice.textContent = message;
+  clearTimeout(showNotice.timer);
+  showNotice.timer = setTimeout(() => {
+    els.notice.hidden = true;
+  }, 6500);
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
