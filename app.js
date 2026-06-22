@@ -13,6 +13,10 @@ const els = {
   docSummary: document.querySelector("#docSummary"),
   requestDocButton: document.querySelector("#requestDocButton"),
   exportButton: document.querySelector("#exportButton"),
+  bulkActions: document.querySelector("#bulkActions"),
+  bulkSelectionCount: document.querySelector("#bulkSelectionCount"),
+  clearElementSelectionButton: document.querySelector("#clearElementSelectionButton"),
+  bulkRequestButton: document.querySelector("#bulkRequestButton"),
   notice: document.querySelector("#notice"),
   requestPanel: document.querySelector("#requestPanel"),
   requestTitle: document.querySelector("#requestTitle"),
@@ -35,7 +39,8 @@ const state = {
   data: normalizeData(window.STUDY_WIKI_DATA || { docs: {} }),
   currentId: null,
   pendingRequest: null,
-  collapsedDocIds: new Set()
+  collapsedDocIds: new Set(),
+  selectedElementKeys: new Set()
 };
 
 loadUiState();
@@ -70,6 +75,16 @@ function bindEvents() {
   });
 
   els.exportButton.addEventListener("click", exportData);
+
+  els.clearElementSelectionButton.addEventListener("click", () => {
+    state.selectedElementKeys.clear();
+    const doc = currentDoc();
+    if (doc) renderElements(doc);
+  });
+
+  els.bulkRequestButton.addEventListener("click", () => {
+    createBulkElementRequest();
+  });
 
   els.copyRequestButton.addEventListener("click", async () => {
     if (!state.pendingRequest) return;
@@ -169,6 +184,70 @@ function createCodexRequest({ label, parentDoc, reason, source }) {
   showNotice("生成依頼を作りました。");
 }
 
+function createBulkElementRequest() {
+  const parentDoc = currentDoc();
+  if (!parentDoc) return;
+  const items = selectedUnlinkedElements(parentDoc);
+  if (!items.length) {
+    showNotice("未作成の要素を選択してください。");
+    return;
+  }
+
+  const request = {
+    version: 1,
+    action: "generate-docs",
+    label: `${parentDoc.title}の選択要素`,
+    key: `${parentDoc.id}-bulk`,
+    source: "bulk-elements",
+    parentId: parentDoc.id,
+    parentTitle: parentDoc.title,
+    parentSummary: parentDoc.summary,
+    items: items.map((item) => ({
+      label: item.label,
+      key: conceptKey(item.key || item.label),
+      reason: item.reason || "この要素の解説文書を作るため。"
+    })),
+    createdAt: new Date().toISOString()
+  };
+  request.prompt = buildBulkCodexPrompt(request, parentDoc);
+  state.pendingRequest = request;
+  updateRequestHash(request);
+  renderRequestPanel();
+  emphasizeRequestPanel();
+  showNotice(`${items.length}件の生成依頼を作りました。`);
+}
+
+function buildBulkCodexPrompt(request, parentDoc) {
+  const itemLines = request.items
+    .map((item, index) => `${index + 1}. ${item.label}\n   key: ${item.key}\n   理由: ${item.reason}`)
+    .join("\n");
+
+  return [
+    "Codex複数生成依頼:",
+    `親文書ID: ${parentDoc.id}`,
+    `親文書タイトル: ${parentDoc.title}`,
+    `親文書要約: ${parentDoc.summary}`,
+    "",
+    "対象要素:",
+    itemLines,
+    "",
+    "親文書の本文抜粋:",
+    parentDoc.markdown.slice(0, 1800),
+    "",
+    "作業内容:",
+    "1. data.js の window.STUDY_WIKI_DATA.docs に、対象要素それぞれの新しい文書を追加してください。",
+    "2. 新規文書IDは英数字とハイフンの短いIDにしてください。既存IDと重複しないようにしてください。",
+    "3. 各新規文書には title, key, summary, markdown, elements, aliases, parentLinks, createdAt, updatedAt を入れてください。",
+    "4. 各新規文書の parentLinks に { docId, title, elementKey, elementLabel, source } を入れてください。docId は親文書ID、title は親文書タイトル、elementKey と elementLabel は対象要素の key と label、source は bulk-elements にしてください。",
+    "5. 親文書の elements に同じ key がある場合は linkedDocId を各新規文書IDにしてください。",
+    "6. ほかの既存文書の elements に同じ key がある場合も linkedDocId を同じ新規文書IDにしてください。",
+    "7. 文書は日本語で、網羅的かつ詳細に説明してください。",
+    "8. 各文書の markdown本文と、理解に必要な細かい要素 8から18個を elements に入れてください。",
+    "9. 既存の data.js の書式に合わせ、外部APIやlocalStorageは使わないでください。",
+    "10. 複数文書を追加した後、data.js がJavaScriptとして壊れていないか確認してください。"
+  ].join("\n");
+}
+
 function buildCodexPrompt(request, parentDoc) {
   const parentBlock = parentDoc
     ? [
@@ -210,7 +289,8 @@ function updateRequestHash(request) {
     parentTitle: request.parentTitle,
     reason: request.reason,
     source: request.source,
-    selectionText: request.selectionText || null
+    selectionText: request.selectionText || null,
+    items: request.items || null
   };
   const encoded = encodeURIComponent(JSON.stringify(hashPayload));
   history.replaceState(null, "", `${location.pathname}${location.search}#codex-request=${encoded}`);
@@ -223,7 +303,12 @@ function readHashRequest() {
     const request = JSON.parse(raw);
     const parentDoc = request.parentId ? state.data.docs[request.parentId] : null;
     request.createdAt = request.createdAt || new Date().toISOString();
-    request.prompt = buildCodexPrompt(request, parentDoc);
+    if (request.action === "generate-docs") {
+      if (!parentDoc || !Array.isArray(request.items)) return;
+      request.prompt = buildBulkCodexPrompt(request, parentDoc);
+    } else {
+      request.prompt = buildCodexPrompt(request, parentDoc);
+    }
     state.pendingRequest = request;
   } catch {
     state.pendingRequest = null;
@@ -442,6 +527,7 @@ function renderCurrentDocument() {
     els.documentBody.innerHTML = "";
     els.elementList.innerHTML = "";
     els.elementSection.hidden = true;
+    state.selectedElementKeys.clear();
     renderMeta(null);
     return;
   }
@@ -458,8 +544,28 @@ function renderCurrentDocument() {
 
 function renderElements(doc) {
   els.elementList.innerHTML = "";
+  const validKeys = new Set();
   doc.elements.forEach((element) => {
     const linkedDoc = element.linkedDocId ? state.data.docs[element.linkedDocId] : findDocByConcept(element.label);
+    const elementKey = conceptKey(element.key || element.label);
+    if (!linkedDoc) validKeys.add(elementKey);
+    const card = document.createElement("div");
+    card.className = `element-card ${state.selectedElementKeys.has(elementKey) ? "is-selected" : ""}`;
+    const selectWrap = document.createElement("label");
+    selectWrap.className = "element-select";
+    selectWrap.innerHTML = `<input type="checkbox" /><span>選択</span>`;
+    const checkbox = selectWrap.querySelector("input");
+    checkbox.checked = state.selectedElementKeys.has(elementKey);
+    checkbox.disabled = Boolean(linkedDoc);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        state.selectedElementKeys.add(elementKey);
+      } else {
+        state.selectedElementKeys.delete(elementKey);
+      }
+      renderElements(doc);
+    });
+
     const button = document.createElement("button");
     button.type = "button";
     button.className = "element-button";
@@ -500,8 +606,32 @@ function renderElements(doc) {
         source: "element-contextmenu"
       });
     });
-    els.elementList.append(button);
+    card.append(selectWrap, button);
+    els.elementList.append(card);
   });
+  state.selectedElementKeys.forEach((key) => {
+    if (!validKeys.has(key)) state.selectedElementKeys.delete(key);
+  });
+  renderBulkActions(doc);
+}
+
+function selectedUnlinkedElements(doc) {
+  return doc.elements.filter((element) => {
+    const linkedDoc = element.linkedDocId ? state.data.docs[element.linkedDocId] : findDocByConcept(element.label);
+    return !linkedDoc && state.selectedElementKeys.has(conceptKey(element.key || element.label));
+  });
+}
+
+function renderBulkActions(doc) {
+  const selectableCount = doc.elements.filter((element) => {
+    const linkedDoc = element.linkedDocId ? state.data.docs[element.linkedDocId] : findDocByConcept(element.label);
+    return !linkedDoc;
+  }).length;
+  const selectedCount = selectedUnlinkedElements(doc).length;
+  els.bulkActions.hidden = selectableCount === 0;
+  els.bulkSelectionCount.textContent = `${selectedCount}件選択中`;
+  els.bulkRequestButton.disabled = selectedCount === 0;
+  els.clearElementSelectionButton.disabled = selectedCount === 0;
 }
 
 function renderMeta(doc) {
@@ -526,7 +656,9 @@ function renderRequestPanel() {
   const request = state.pendingRequest;
   els.requestPanel.hidden = !request;
   if (!request) return;
-  els.requestTitle.textContent = `「${request.label}」の生成依頼`;
+  els.requestTitle.textContent = request.action === "generate-docs"
+    ? `${request.items.length}件の生成依頼`
+    : `「${request.label}」の生成依頼`;
   els.requestMeta.textContent = request.parentTitle
     ? `親文書: ${request.parentTitle}`
     : "ルート文書として作成";
@@ -732,6 +864,7 @@ function openDoc(id) {
   if (!state.data.docs[id]) return;
   state.currentId = id;
   state.data.currentId = id;
+  state.selectedElementKeys.clear();
   expandAncestorsOfDoc(id);
   saveUiState();
   render();

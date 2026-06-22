@@ -135,8 +135,15 @@
 
           <section class="element-section" id="elementSection">
             <div class="section-heading">
-              <h3>この解説を理解するための細かい要素</h3>
-              <p>文書ありなら開きます。未作成の要素は深掘り候補になります。</p>
+              <div>
+                <h3>この解説を理解するための細かい要素</h3>
+                <p>文書ありなら開きます。未作成の要素は深掘り候補になります。</p>
+              </div>
+              <div class="bulk-actions" id="bulkActions">
+                <span id="bulkSelectionCount">0件選択中</span>
+                <button class="secondary-button" id="clearElementSelectionButton" type="button">解除</button>
+                <button class="primary-button" id="bulkRequestButton" type="button">まとめて生成依頼</button>
+              </div>
             </div>
             <div class="element-list" id="elementList"></div>
           </section>
