@@ -61,6 +61,29 @@ code {
   padding: 1px 4px;
 }
 
+.math-inline {
+  font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif;
+  font-style: italic;
+  color: #1f2f2b;
+  white-space: nowrap;
+}
+
+.math-block {
+  margin: 18px auto;
+  padding: 14px 18px;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfaf7;
+  color: #1f2f2b;
+  font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif;
+  font-size: 1.02rem;
+  line-height: 1.75;
+  text-align: center;
+  white-space: pre;
+}
+
 .shell {
   min-height: 100vh;
 }

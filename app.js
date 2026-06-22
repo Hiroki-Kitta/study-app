@@ -243,8 +243,9 @@ function buildBulkCodexPrompt(request, parentDoc) {
     "6. ほかの既存文書の elements に同じ key がある場合も linkedDocId を同じ新規文書IDにしてください。",
     "7. 文書は日本語で、網羅的かつ詳細に説明してください。",
     "8. 各文書の markdown本文と、理解に必要な細かい要素 8から18個を elements に入れてください。",
-    "9. 既存の data.js の書式に合わせ、外部APIやlocalStorageは使わないでください。",
-    "10. 複数文書を追加した後、data.js がJavaScriptとして壊れていないか確認してください。"
+    "9. 数式が必要な要素では、専門書の記法にならい、変数定義、前提条件、代表式、近似式、式の読み方を含めてください。本文中の数式は $...$、独立した重要式は $$ だけの行で囲んだ数式ブロックにしてください。",
+    "10. 既存の data.js の書式に合わせ、外部APIやlocalStorageは使わないでください。",
+    "11. 複数文書を追加した後、data.js がJavaScriptとして壊れていないか確認してください。"
   ].join("\n");
 }
 
@@ -276,7 +277,8 @@ function buildCodexPrompt(request, parentDoc) {
     "6. 既存文書の elements に同じ key がある場合は linkedDocId を新しい文書IDにしてください。",
     "7. 文書は日本語で、網羅的かつ詳細に説明してください。",
     "8. markdown本文と、理解に必要な細かい要素 8から18個を elements に入れてください。",
-    "9. 既存の data.js の書式に合わせ、外部APIやlocalStorageは使わないでください。"
+    "9. 数式が必要な要素では、専門書の記法にならい、変数定義、前提条件、代表式、近似式、式の読み方を含めてください。本文中の数式は $...$、独立した重要式は $$ だけの行で囲んだ数式ブロックにしてください。",
+    "10. 既存の data.js の書式に合わせ、外部APIやlocalStorageは使わないでください。"
   ].join("\n");
 }
 
@@ -672,6 +674,7 @@ function renderMarkdown(markdown, container) {
   const lines = String(markdown || "").replace(/\r\n/g, "\n").split("\n");
   let paragraph = [];
   let list = null;
+  let mathBlock = null;
 
   const flushParagraph = () => {
     if (!paragraph.length) return;
@@ -687,8 +690,33 @@ function renderMarkdown(markdown, container) {
     list = null;
   };
 
+  const flushMathBlock = () => {
+    if (!mathBlock) return;
+    const block = document.createElement("div");
+    block.className = "math-block";
+    block.textContent = mathBlock.join("\n");
+    container.append(block);
+    mathBlock = null;
+  };
+
   lines.forEach((line) => {
     const trimmed = line.trim();
+    if (trimmed === "$$") {
+      if (mathBlock) {
+        flushMathBlock();
+      } else {
+        flushParagraph();
+        flushList();
+        mathBlock = [];
+      }
+      return;
+    }
+
+    if (mathBlock) {
+      mathBlock.push(line);
+      return;
+    }
+
     if (!trimmed) {
       flushParagraph();
       flushList();
@@ -725,12 +753,14 @@ function renderMarkdown(markdown, container) {
 
   flushParagraph();
   flushList();
+  flushMathBlock();
 }
 
 function renderInline(text) {
   return escapeHtml(text)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\$([^$]+)\$/g, "<span class=\"math-inline\">$1</span>");
 }
 
 function linkDocumentInline(container, doc) {
