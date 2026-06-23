@@ -794,6 +794,7 @@ function renderInline(text) {
 }
 
 function renderMathBlock(source, container) {
+  container.dataset.mathSource = normalizeMathSource(source);
   container.innerHTML = renderMathMarkup(source, true);
 }
 
@@ -805,10 +806,10 @@ function renderMathMarkup(source, display) {
     const parser = new MathParser(expression);
     const body = parser.parse();
     const math = `<math xmlns="http://www.w3.org/1998/Math/MathML" display="${display ? "block" : "inline"}"><mrow>${body}</mrow></math>`;
-    return display ? math : `<span class="math-inline">${math}</span>`;
+    return display ? math : `<span class="math-inline" data-math-source="${escapeHtml(expression)}">${math}</span>`;
   } catch {
     const fallback = `<span class="math-fallback">${escapeHtml(expression)}</span>`;
-    return display ? fallback : `<span class="math-inline">${fallback}</span>`;
+    return display ? fallback : `<span class="math-inline" data-math-source="${escapeHtml(expression)}">${fallback}</span>`;
   }
 }
 
@@ -1368,7 +1369,37 @@ function saveUiState() {
 function getSelectedText() {
   const selection = window.getSelection();
   if (!selection || selection.isCollapsed) return "";
-  return selection.toString();
+  return getSelectedMathSource(selection) || selection.toString();
+}
+
+function getSelectedMathSource(selection) {
+  const sources = [];
+  const seen = new Set();
+  const mathNodes = [...els.documentBody.querySelectorAll(".math-block[data-math-source], .math-inline[data-math-source]")];
+
+  for (let index = 0; index < selection.rangeCount; index += 1) {
+    const range = selection.getRangeAt(index);
+    mathNodes.forEach((node) => {
+      if (!rangeIntersectsNode(range, node)) return;
+      const source = node.dataset.mathSource;
+      if (!source || seen.has(source)) return;
+      seen.add(source);
+      sources.push(source);
+    });
+  }
+
+  return sources.join("\n");
+}
+
+function rangeIntersectsNode(range, node) {
+  try {
+    return range.intersectsNode(node);
+  } catch {
+    const nodeRange = document.createRange();
+    nodeRange.selectNodeContents(node);
+    return range.compareBoundaryPoints(Range.END_TO_START, nodeRange) < 0
+      && range.compareBoundaryPoints(Range.START_TO_END, nodeRange) > 0;
+  }
 }
 
 function showSelectionMenu(selectedText, clientX, clientY) {
