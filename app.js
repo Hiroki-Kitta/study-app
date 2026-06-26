@@ -955,6 +955,10 @@ class MathParser {
       case "overline":
       case "bar":
         return tag("mover", this.parseRequiredGroup() + mo("¯"));
+      case "dot":
+        return tag("mover", { accent: "true" }, this.parseRequiredGroup() + mo("˙"));
+      case "ddot":
+        return tag("mover", { accent: "true" }, this.parseRequiredGroup() + mo("¨"));
       case "left":
         return this.parseLeftRight();
       case "right":
