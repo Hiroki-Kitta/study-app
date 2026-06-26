@@ -798,18 +798,33 @@ function renderMathBlock(source, container) {
   container.innerHTML = renderMathMarkup(source, true);
 }
 
+const KATEX_RENDER_OPTIONS = {
+  throwOnError: false,
+  strict: "ignore",
+  trust: false,
+  output: "htmlAndMathml"
+};
+
 function renderMathMarkup(source, display) {
   const expression = normalizeMathSource(source);
   if (!expression) return "";
 
+  const wrapperAttrs = `data-math-source="${escapeHtml(expression)}"`;
+
+  if (!window.katex?.renderToString) {
+    const fallback = `<span class="math-fallback">${escapeHtml(expression)}</span>`;
+    return display ? fallback : `<span class="math-inline" ${wrapperAttrs}>${fallback}</span>`;
+  }
+
   try {
-    const parser = new MathParser(expression);
-    const body = parser.parse();
-    const math = `<math xmlns="http://www.w3.org/1998/Math/MathML" display="${display ? "block" : "inline"}"><mrow>${body}</mrow></math>`;
-    return display ? math : `<span class="math-inline" data-math-source="${escapeHtml(expression)}">${math}</span>`;
+    const math = window.katex.renderToString(expression, {
+      ...KATEX_RENDER_OPTIONS,
+      displayMode: display
+    });
+    return display ? math : `<span class="math-inline" ${wrapperAttrs}>${math}</span>`;
   } catch {
     const fallback = `<span class="math-fallback">${escapeHtml(expression)}</span>`;
-    return display ? fallback : `<span class="math-inline" data-math-source="${escapeHtml(expression)}">${fallback}</span>`;
+    return display ? fallback : `<span class="math-inline" ${wrapperAttrs}>${fallback}</span>`;
   }
 }
 

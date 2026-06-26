@@ -64,7 +64,6 @@ code {
 .math-inline {
   display: inline-flex;
   align-items: center;
-  font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif;
   color: #1f2f2b;
   white-space: nowrap;
   vertical-align: -0.18em;
@@ -79,19 +78,22 @@ code {
   border-radius: 6px;
   background: #fbfaf7;
   color: #1f2f2b;
-  font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif;
   font-size: 1.02rem;
   line-height: 1.75;
   text-align: center;
   white-space: normal;
 }
 
-.math-inline math,
-.math-block math {
-  font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif;
+.math-inline .katex,
+.math-block .katex {
+  color: #1f2f2b;
 }
 
-.math-block math {
+.math-block .katex-display {
+  margin: 0;
+}
+
+.math-block .katex {
   display: inline-block;
   font-size: 1.12rem;
 }
