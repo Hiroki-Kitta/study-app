@@ -832,7 +832,7 @@ function renderMathMarkup(source, display) {
 }
 
 function splitEquationTag(expression) {
-  const match = expression.match(/\\tag\s*\{([^{}]+)\}\s*$/);
+  const match = expression.match(/(?:\\tag|[\t ]+ag|(?:^|\s+)tag|(?:^|\s+)ag)\s*\{([^{}]+)\}\s*$/);
   if (!match) return { expression, tagLabel: "" };
   return {
     expression: expression.slice(0, match.index).trim(),

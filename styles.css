@@ -98,10 +98,11 @@ code {
 }
 
 .math-display-row {
-  display: inline-block;
-  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   min-width: max-content;
-  padding-right: 4.2em;
   width: max-content;
 }
 
@@ -111,10 +112,8 @@ code {
 }
 
 .math-equation-number {
-  position: absolute;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
+  display: block;
+  align-self: flex-end;
   color: #1f2f2b;
   font-family: KaTeX_Main, "Times New Roman", serif;
   font-size: 1rem;
