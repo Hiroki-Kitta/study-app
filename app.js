@@ -12,6 +12,7 @@ const els = {
   docTitle: document.querySelector("#docTitle"),
   docSummary: document.querySelector("#docSummary"),
   requestDocButton: document.querySelector("#requestDocButton"),
+  regenerateDocButton: document.querySelector("#regenerateDocButton"),
   exportButton: document.querySelector("#exportButton"),
   bulkActions: document.querySelector("#bulkActions"),
   bulkSelectionCount: document.querySelector("#bulkSelectionCount"),
@@ -67,6 +68,12 @@ function bindEvents() {
       reason: "現在の文書をさらに細かく分解して理解するため。",
       source: "document-action"
     });
+  });
+
+  els.regenerateDocButton.addEventListener("click", () => {
+    const doc = currentDoc();
+    if (!doc) return;
+    createRegenerateRequest(doc);
   });
 
   els.exportButton.addEventListener("click", exportData);
@@ -163,11 +170,14 @@ function searchSelectionInBrowser(selectedText) {
 }
 
 function createCodexRequest({ label, parentDoc, reason, source }) {
+  const requestLabel = source === "selection-formula" && parentDoc
+    ? `${parentDoc.title}の導出`
+    : label;
   const request = {
     version: 1,
     action: "generate-doc",
-    label,
-    key: conceptKey(label),
+    label: requestLabel,
+    key: conceptKey(requestLabel),
     source,
     reason,
     parentId: parentDoc?.id || null,
@@ -183,6 +193,27 @@ function createCodexRequest({ label, parentDoc, reason, source }) {
   renderRequestPanel();
   emphasizeRequestPanel();
   showNotice("生成依頼を作りました。");
+}
+
+function createRegenerateRequest(doc) {
+  const request = {
+    version: 1,
+    action: "regenerate-doc",
+    label: doc.title,
+    key: requestKeyForDoc(doc),
+    source: "regenerate",
+    reason: "既存文書を同じIDのまま作り直すため。",
+    targetDocId: doc.id,
+    parentId: doc.parentLinks?.[0]?.docId || null,
+    parentTitle: doc.parentLinks?.[0]?.title || null,
+    createdAt: new Date().toISOString()
+  };
+  request.prompt = buildRegenerateCodexPrompt(doc);
+  state.pendingRequest = request;
+  updateRequestHash(request);
+  renderRequestPanel();
+  emphasizeRequestPanel();
+  showNotice("再生成依頼を作りました。");
 }
 
 function createBulkElementRequest() {
@@ -296,11 +327,63 @@ function buildCodexPrompt(request, parentDoc) {
   ].join("\n");
 }
 
+function buildRegenerateCodexPrompt(doc) {
+  const requestKey = requestKeyForDoc(doc);
+  const parentLines = doc.parentLinks?.length
+    ? doc.parentLinks.map((link) => {
+        const parentTitle = state.data.docs[link.docId]?.title || link.title || "親文書";
+        return `- ${parentTitle} > ${displayParentElementLabel(doc, link)} / source: ${link.source || "unknown"}`;
+      }).join("\n")
+    : "親文書なし。ルート文書として維持。";
+  const isFormulaDerivation = doc.parentLinks?.some((link) => link.source === "selection-formula");
+  const formulaNote = isFormulaDerivation
+    ? [
+        "",
+        "数式導出文書としての追加指示:",
+        "1. title は長い数式そのものではなく、「Butler-Volmer式の導出」のような短く分かりやすい題名にしてください。",
+        "2. markdown本文では、対象数式、記号の意味、前提条件、導出の各ステップ、最終式、適用範囲と注意点を順に説明してください。",
+        "3. elements には、導出を理解するために必要な数学分野と物理・化学の前提知識を中心に入れてください。"
+      ].join("\n")
+    : "";
+
+  return [
+    "Codex再生成依頼:",
+    `対象文書ID: ${doc.id}`,
+    `対象文書タイトル: ${doc.title}`,
+    `対象key: ${requestKey}`,
+    "生成元: regenerate",
+    "理由: 既存文書を同じIDのまま、現在の方針に合わせて作り直すため。",
+    "",
+    "親文書:",
+    parentLines,
+    "",
+    "現在の文書要約:",
+    doc.summary || "",
+    "",
+    "現在の本文抜粋:",
+    String(doc.markdown || "").slice(0, 2200),
+    formulaNote,
+    "",
+    "作業内容:",
+    `1. data.js の window.STUDY_WIKI_DATA.docs["${doc.id}"] を上書き更新してください。新規文書IDは作らず、id は "${doc.id}" のまま維持してください。`,
+    "2. title, key, summary, markdown, elements, aliases, parentLinks, createdAt, updatedAt を入れてください。",
+    "3. createdAt は既存値を維持し、updatedAt は更新してください。",
+    "4. parentLinks は原則として既存の親子関係を維持してください。source が selection-formula の場合、elementLabel はリンク用に元の数式のままで構いませんが、title は短い導出名にしてください。",
+    "5. 既存文書の elements からこの文書へ linkedDocId が張られている場合、その関係を壊さないでください。",
+    "6. 文書は日本語で、網羅的かつ詳細に説明してください。",
+    "7. markdown本文と、理解に必要な細かい要素 8から18個を elements に入れてください。",
+    "8. 数式で説明できる部分は必ず数式を使ってください。専門書の記法にならい、変数定義、前提条件、代表式、近似式、式の読み方を含めてください。本文中の数式は $...$、独立した重要式は $$ だけの行で囲んだ数式ブロックにしてください。分数は \\frac{}{}、下付き・上付きは _{} と ^{} を使って書いてください。",
+    "9. 既存の data.js の書式に合わせ、外部APIやlocalStorageは使わないでください。",
+    "10. 更新後、data.js がJavaScriptとして壊れていないか確認してください。"
+  ].join("\n");
+}
+
 function updateRequestHash(request) {
   const hashPayload = {
     action: request.action,
     label: request.label,
     key: request.key,
+    targetDocId: request.targetDocId || null,
     parentId: request.parentId,
     parentTitle: request.parentTitle,
     reason: request.reason,
@@ -321,7 +404,13 @@ function readHashRequest() {
     const parentDoc = request.parentId ? state.data.docs[request.parentId] : null;
     request.createdAt = request.createdAt || new Date().toISOString();
     request.isFormulaDerivation = request.isFormulaDerivation || request.source === "selection-formula";
-    if (request.action === "generate-docs") {
+    if (request.action === "regenerate-doc") {
+      const targetDoc = state.data.docs[request.targetDocId];
+      if (!targetDoc) return;
+      request.label = targetDoc.title;
+      request.key = requestKeyForDoc(targetDoc);
+      request.prompt = buildRegenerateCodexPrompt(targetDoc);
+    } else if (request.action === "generate-docs") {
       if (!parentDoc || !Array.isArray(request.items)) return;
       request.prompt = buildBulkCodexPrompt(request, parentDoc);
     } else {
@@ -493,7 +582,26 @@ function formatDocTreeMeta(doc, parent, childCount, isCollapsed) {
     return `ルート文書 / ${childText} / ${doc.elements.length} 要素`;
   }
   const parentTitle = state.data.docs[parent.docId]?.title || parent.title || "親文書";
-  return `親 ${parentTitle} > ${parent.elementLabel || doc.title} / ${childText}`;
+  return `親 ${parentTitle} > ${displayParentElementLabel(doc, parent)} / ${childText}`;
+}
+
+function displayParentElementLabel(doc, parentLink) {
+  const label = parentLink?.elementLabel || doc.title;
+  if (parentLink?.source === "selection-formula" || isFormulaLikeLabel(label)) {
+    return doc.title || "数式の導出";
+  }
+  return label;
+}
+
+function requestKeyForDoc(doc) {
+  const isFormulaDerivation = doc.parentLinks?.some((link) => link.source === "selection-formula") || isFormulaLikeLabel(doc.key);
+  if (isFormulaDerivation) return conceptKey(doc.title);
+  return doc.key || doc.title;
+}
+
+function isFormulaLikeLabel(label) {
+  const value = String(label || "");
+  return value.length > 48 || /\\(?:frac|left|right|tag|exp|dot|mathrm|mathbf)|[_^{}=]/.test(value);
 }
 
 function toggleDocCollapse(docId) {
@@ -545,12 +653,14 @@ function renderCurrentDocument() {
     els.documentBody.innerHTML = "";
     els.elementList.innerHTML = "";
     els.elementSection.hidden = true;
+    els.regenerateDocButton.disabled = true;
     state.selectedElementKeys.clear();
     renderMeta(null);
     return;
   }
 
   els.elementSection.hidden = false;
+  els.regenerateDocButton.disabled = false;
   els.breadcrumb.textContent = buildBreadcrumb(doc);
   els.docTitle.textContent = doc.title;
   els.docSummary.textContent = doc.summary;
@@ -663,7 +773,7 @@ function renderMeta(doc) {
 
   els.metaId.textContent = doc.id;
   els.metaParents.textContent = doc.parentLinks.length
-    ? doc.parentLinks.map((link) => `${link.title} > ${link.elementLabel}`).join(" / ")
+    ? doc.parentLinks.map((link) => `${link.title} > ${displayParentElementLabel(doc, link)}`).join(" / ")
     : "ルート文書";
   const children = doc.elements.filter((item) => item.linkedDocId && state.data.docs[item.linkedDocId]);
   els.metaChildren.textContent = children.length ? children.map((item) => item.label).join(" / ") : "なし";
@@ -676,6 +786,8 @@ function renderRequestPanel() {
   if (!request) return;
   els.requestTitle.textContent = request.action === "generate-docs"
     ? `${request.items.length}件の生成依頼`
+    : request.action === "regenerate-doc"
+      ? `「${request.label}」の再生成依頼`
     : request.isFormulaDerivation
       ? `選択数式の導出依頼`
     : `「${request.label}」の生成依頼`;
@@ -1382,7 +1494,7 @@ function expandAncestorsOfDoc(id) {
 
 function buildBreadcrumb(doc) {
   const parent = doc.parentLinks[0];
-  return parent ? `${parent.title} / ${parent.elementLabel}` : "ルート文書";
+  return parent ? `${parent.title} / ${displayParentElementLabel(doc, parent)}` : "ルート文書";
 }
 
 function incomingLinkCount(docId) {
