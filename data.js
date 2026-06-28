@@ -2798,6 +2798,253 @@ $$
       ],
       createdAt: "2026-06-24T00:00:00+09:00",
       updatedAt: "2026-06-24T00:00:00+09:00"
+    },
+    "moist-air-enthalpy-derivation": {
+      id: "moist-air-enthalpy-derivation",
+      key: "顕熱と潜熱の導出",
+      title: "湿り空気比エンタルピー式の導出",
+      summary: "湿り空気の比エンタルピー式は、乾き空気1 kgを基準に、乾き空気の顕熱、水蒸気を作る潜熱、水蒸気の顕熱を足し合わせて得られます。基準状態、絶対湿度、比熱一定近似を明確にすると、空気線図で使う近似式の意味が分かります。",
+      markdown: `## 対象数式
+この文書では、湿り空気の比エンタルピーを表す次の近似式を導出します。
+
+$$
+h \\simeq 1.006T + \\omega\\left(2501 + 1.86T\\right) \\tag{10}
+$$
+
+この式は、空調でよく使われる「乾き空気 1 kg あたり」の湿り空気比エンタルピーです。単位は通常 $\\mathrm{kJ}\\,\\mathrm{kg}_{\\mathrm{da}}^{-1}$ です。
+
+## 記号の意味
+$h$ は湿り空気の比エンタルピー、$T$ は摂氏温度、$\\omega$ は乾き空気 1 kg あたりの水蒸気質量、つまり絶対湿度または混合比です。
+
+$$
+\\omega = \\frac{m_{\\mathrm{v}}}{m_{\\mathrm{da}}} \\tag{1}
+$$
+
+$m_{\\mathrm{da}}$ は乾き空気の質量、$m_{\\mathrm{v}}$ は水蒸気の質量です。下付きの $\\mathrm{da}$ は dry air、$\\mathrm{v}$ は vapor を表します。
+
+係数の意味は次の通りです。
+
+$$
+c_{p,a} \\simeq 1.006\\ \\mathrm{kJ}\\,\\mathrm{kg}_{\\mathrm{da}}^{-1}\\,\\mathrm{K}^{-1} \\tag{2}
+$$
+
+$$
+c_{p,v} \\simeq 1.86\\ \\mathrm{kJ}\\,\\mathrm{kg}_{\\mathrm{v}}^{-1}\\,\\mathrm{K}^{-1} \\tag{3}
+$$
+
+$$
+h_{\\mathrm{fg},0} \\simeq 2501\\ \\mathrm{kJ}\\,\\mathrm{kg}_{\\mathrm{v}}^{-1} \\tag{4}
+$$
+
+$c_{p,a}$ は乾き空気の定圧比熱、$c_{p,v}$ は水蒸気の定圧比熱、$h_{\\mathrm{fg},0}$ はおよそ 0 度C を基準にした水の蒸発潜熱です。
+
+## 前提条件
+この導出では、湿り空気を乾き空気と水蒸気の理想混合気体として扱います。空調でよく扱う常圧付近、常温付近の範囲では、この近似で多くの実用計算に十分な精度が得られます。
+
+また、比熱 $c_{p,a}$ と $c_{p,v}$ は温度によらず一定とみなします。エンタルピーの基準は、乾き空気と液体水のエンタルピーを 0 度C で 0 とする取り方にそろえます。エンタルピーは絶対値そのものより差が重要なので、基準をそろえておけば熱負荷計算に使えます。
+
+## 使う定義と保存則
+湿り空気全体のエンタルピー $H$ は、乾き空気のエンタルピー $H_{\\mathrm{da}}$ と水蒸気のエンタルピー $H_{\\mathrm{v}}$ の和として書きます。
+
+$$
+H = H_{\\mathrm{da}} + H_{\\mathrm{v}} \\tag{5}
+$$
+
+これはエネルギーが各成分に加算できるという考え方です。化学反応や強い相互作用を考えない理想混合気体では、混合物のエンタルピーは各成分のエンタルピーの和で近似できます。
+
+空調では、加熱、冷却、加湿、除湿の途中でも乾き空気そのものの質量はほぼ保存されます。そのため、全体を乾き空気質量 $m_{\\mathrm{da}}$ で割って、乾き空気 1 kg あたりの量として整理します。
+
+$$
+h = \\frac{H}{m_{\\mathrm{da}}} \\tag{6}
+$$
+
+この $h$ が、式 (10) の左辺にある湿り空気比エンタルピーです。
+
+## 乾き空気の顕熱
+まず、乾き空気のエンタルピーを考えます。0 度C を基準にし、比熱を一定とすれば、定圧で温度を 0 から $T$ まで上げるのに必要な単位質量あたりの顕熱は
+
+$$
+\\int_{0}^{T} c_{p,a}\\,dT = c_{p,a}T \\tag{7}
+$$
+
+です。したがって乾き空気 $m_{\\mathrm{da}}$ が持つ顕熱は
+
+$$
+H_{\\mathrm{da}} = m_{\\mathrm{da}} c_{p,a}T \\tag{8}
+$$
+
+となります。ここで $T$ は摂氏温度ですが、温度差として扱うため、$1\\ \\mathrm{K}$ の差と $1\\ ^{\\circ}\\mathrm{C}$ の差は同じ大きさです。
+
+## 水蒸気の潜熱と顕熱
+次に、水蒸気のエンタルピーを考えます。基準を「0 度C の液体水」に置くと、水蒸気 1 kg は、まず液体水から水蒸気になるための潜熱を持ち、その後、温度 $T$ まで水蒸気として加熱された顕熱を持つと近似できます。
+
+単位質量あたりの水蒸気エンタルピーは
+
+$$
+h_{\\mathrm{v}} \\simeq h_{\\mathrm{fg},0} + c_{p,v}T \\tag{9}
+$$
+
+です。右辺第一項 $h_{\\mathrm{fg},0}$ が潜熱、第二項 $c_{p,v}T$ が水蒸気の顕熱です。
+
+したがって、水蒸気質量が $m_{\\mathrm{v}}$ のとき、水蒸気成分のエンタルピーは
+
+$$
+H_{\\mathrm{v}} = m_{\\mathrm{v}}\\left(h_{\\mathrm{fg},0} + c_{p,v}T\\right) \\tag{10}
+$$
+
+となります。
+
+## 乾き空気 1 kg あたりに直す
+式 (5)、式 (8)、式 (10) を合わせると、湿り空気全体のエンタルピーは
+
+$$
+H =
+m_{\\mathrm{da}} c_{p,a}T
++ m_{\\mathrm{v}}\\left(h_{\\mathrm{fg},0} + c_{p,v}T\\right) \\tag{11}
+$$
+
+です。これを乾き空気質量 $m_{\\mathrm{da}}$ で割ります。
+
+$$
+\\frac{H}{m_{\\mathrm{da}}}
+=
+c_{p,a}T
++ \\frac{m_{\\mathrm{v}}}{m_{\\mathrm{da}}}
+\\left(h_{\\mathrm{fg},0} + c_{p,v}T\\right) \\tag{12}
+$$
+
+ここで、式 (1) より $\\omega = \\frac{m_{\\mathrm{v}}}{m_{\\mathrm{da}}}$ なので、
+
+$$
+h =
+c_{p,a}T
++ \\omega\\left(h_{\\mathrm{fg},0} + c_{p,v}T\\right) \\tag{13}
+$$
+
+が得られます。これは、親文書で示した一般形
+
+$$
+h = c_{p,a}T + \\omega\\left(h_{\\mathrm{fg},0} + c_{p,v}T\\right) \\tag{14}
+$$
+
+と同じ式です。
+
+## 数値を代入する
+常温付近の代表値として
+
+$$
+c_{p,a} \\simeq 1.006,\quad
+h_{\\mathrm{fg},0} \\simeq 2501,\quad
+c_{p,v} \\simeq 1.86 \\tag{15}
+$$
+
+を使います。単位はそれぞれ、$c_{p,a}$ と $c_{p,v}$ が $\\mathrm{kJ}\\,\\mathrm{kg}^{-1}\\,\\mathrm{K}^{-1}$、$h_{\\mathrm{fg},0}$ が $\\mathrm{kJ}\\,\\mathrm{kg}^{-1}$ です。
+
+式 (13) に代入すると、
+
+$$
+h \\simeq
+1.006T
++ \\omega\\left(2501 + 1.86T\\right) \\tag{16}
+$$
+
+となります。これが対象数式です。
+
+## 単位の確認
+第一項 $1.006T$ の単位は
+
+$$
+\\frac{\\mathrm{kJ}}{\\mathrm{kg}_{\\mathrm{da}}\\,\\mathrm{K}}
+\\cdot \\mathrm{K}
+=
+\\frac{\\mathrm{kJ}}{\\mathrm{kg}_{\\mathrm{da}}} \\tag{17}
+$$
+
+です。乾き空気 1 kg あたりの顕熱なので、$\\mathrm{kJ}\\,\\mathrm{kg}_{\\mathrm{da}}^{-1}$ になります。
+
+第二項では、$\\omega$ の単位は
+
+$$
+\\omega =
+\\frac{\\mathrm{kg}_{\\mathrm{v}}}{\\mathrm{kg}_{\\mathrm{da}}} \\tag{18}
+$$
+
+です。また、括弧内 $2501 + 1.86T$ は水蒸気 1 kg あたりのエンタルピーなので、単位は $\\mathrm{kJ}\\,\\mathrm{kg}_{\\mathrm{v}}^{-1}$ です。したがって
+
+$$
+\\frac{\\mathrm{kg}_{\\mathrm{v}}}{\\mathrm{kg}_{\\mathrm{da}}}
+\\cdot
+\\frac{\\mathrm{kJ}}{\\mathrm{kg}_{\\mathrm{v}}}
+=
+\\frac{\\mathrm{kJ}}{\\mathrm{kg}_{\\mathrm{da}}} \\tag{19}
+$$
+
+となり、第一項と同じ単位で足し合わせられます。
+
+## 式の読み方
+式 (16) は、湿り空気の全熱を三つの部分に分けて読めます。
+
+$$
+h \\simeq
+\\underbrace{1.006T}_{\\text{乾き空気の顕熱}}
++
+\\underbrace{\\omega\\,2501}_{\\text{水蒸気を含むことによる潜熱}}
++
+\\underbrace{\\omega\\,1.86T}_{\\text{水蒸気の顕熱}} \\tag{20}
+$$
+
+第一項は、空気温度が高いほど大きくなる乾き空気の顕熱です。第二項は、水蒸気量 $\\omega$ が増えるほど大きくなる潜熱成分です。第三項は、含まれている水蒸気そのものを温めている顕熱です。
+
+ここで重要なのは、温度 $T$ だけでなく絶対湿度 $\\omega$ も全熱に効くことです。同じ 26 度C でも、乾燥した空気と高湿度の空気では $\\omega$ が違うため、湿り空気比エンタルピー $h$ は変わります。冷房や除湿では、この差がコイルの全熱負荷になります。
+
+## 熱負荷式とのつながり
+乾き空気の質量流量を $\\dot m_{\\mathrm{da}}$ とすると、入口状態 1 から出口状態 2 への全熱負荷は
+
+$$
+\\dot Q_{\\mathrm{t}}
+=
+\\dot m_{\\mathrm{da}}\\left(h_2 - h_1\\right) \\tag{21}
+$$
+
+と書けます。ここで
+
+$$
+h_2 - h_1 =
+1.006\\left(T_2 - T_1\\right)
++ 2501\\left(\\omega_2 - \\omega_1\\right)
++ 1.86\\left(\\omega_2T_2 - \\omega_1T_1\\right) \\tag{22}
+$$
+
+です。第一項は主に顕熱差、第二項は主に潜熱差、第三項は水蒸気の顕熱差を表します。除湿冷却では $T_2 < T_1$ かつ $\\omega_2 < \\omega_1$ となるため、空気側の $h_2 - h_1$ は負になり、空気が全熱を失ったことを意味します。
+
+## 適用範囲と注意点
+この式は、常圧付近の湿り空気、空調でよく扱う温度範囲、比熱一定近似、理想混合気体近似を前提にした実用式です。空気線図や通常の空調負荷計算では非常によく使われます。
+
+ただし、高温域、低温域、圧力が大きく異なる条件、霧や液滴を含む二相状態、氷点下で氷を含む状態、厳密な物性計算が必要な条件では、比熱や潜熱の温度依存、液体水や氷のエンタルピー、実在気体性を考慮する必要があります。
+
+また、エンタルピーの基準状態は資料によって表現が少し異なることがあります。熱負荷で必要なのは多くの場合 $h_2 - h_1$ なので、同じ基準で計算したエンタルピー差を使うことが大切です。式の係数を暗記するだけでなく、乾き空気の顕熱、水蒸気の潜熱、水蒸気の顕熱を足している式だと読むと、顕熱と潜熱の関係が見えやすくなります。`,
+      elements: [
+        { label: "比エンタルピー", key: "比エンタルピー", reason: "混合気体の全熱を単位質量あたりの状態量として表すため。", category: "熱力学", difficulty: "標準", linkedDocId: null },
+        { label: "乾き空気基準", key: "乾き空気基準", reason: "湿り空気量を乾き空気1 kgあたりで整理する理由を理解するため。", category: "空調", difficulty: "標準", linkedDocId: null },
+        { label: "絶対湿度", key: "絶対湿度", reason: "水蒸気質量を乾き空気質量で割る混合比を扱うため。", category: "空調", difficulty: "基礎", linkedDocId: null },
+        { label: "質量保存則", key: "質量保存則", reason: "乾き空気質量を保存量として選び、乾き空気1 kgあたりに直すため。", category: "物理", difficulty: "基礎", linkedDocId: null },
+        { label: "エネルギー保存則", key: "エネルギー保存則", reason: "乾き空気と水蒸気のエンタルピーを加算して全熱を表すため。", category: "物理", difficulty: "標準", linkedDocId: null },
+        { label: "定圧比熱", key: "定圧比熱", reason: "温度変化による顕熱を c_p T として積分するため。", category: "熱力学", difficulty: "基礎", linkedDocId: null },
+        { label: "蒸発潜熱", key: "蒸発潜熱", reason: "水蒸気成分に 2501 kJ/kg 程度の大きな潜熱が含まれる理由を理解するため。", category: "熱力学", difficulty: "基礎", linkedDocId: null },
+        { label: "基準状態", key: "基準状態", reason: "エンタルピーのゼロ点をそろえ、式の定数項 2501 の意味を理解するため。", category: "熱力学", difficulty: "標準", linkedDocId: null },
+        { label: "比熱の積分", key: "比熱の積分", reason: "エンタルピー差を温度に関する比熱の積分として導くため。", category: "数学", difficulty: "標準", linkedDocId: null },
+        { label: "単位解析", key: "単位解析", reason: "各項が kJ/kg_da でそろって足し合わせられることを確認するため。", category: "数学", difficulty: "基礎", linkedDocId: null },
+        { label: "近似と線形化", key: "近似と線形化", reason: "比熱一定や常温付近の代表値を使う近似の範囲を判断するため。", category: "数学", difficulty: "標準", linkedDocId: null },
+        { label: "理想気体混合物", key: "理想気体混合物", reason: "乾き空気と水蒸気のエンタルピーを成分ごとに足せる前提を理解するため。", category: "熱力学", difficulty: "標準", linkedDocId: null },
+        { label: "湿り空気", key: "湿り空気", reason: "空気を乾き空気と水蒸気の混合物として扱うため。", category: "空調", difficulty: "標準", linkedDocId: null },
+        { label: "顕熱と潜熱", key: "顕熱と潜熱", reason: "式を乾き空気の顕熱、水蒸気の潜熱、水蒸気の顕熱に分けて読むため。", category: "空調", difficulty: "基礎", linkedDocId: "sensible-latent-heat" }
+      ],
+      aliases: ["湿り空気比エンタルピー", "湿り空気エンタルピー式", "湿り空気比エンタルピー式の導出", "空気線図エンタルピー", "顕熱と潜熱の導出", "moist air enthalpy", "humid air enthalpy"],
+      parentLinks: [
+        { docId: "sensible-latent-heat", title: "顕熱と潜熱", elementKey: "顕熱と潜熱の導出", elementLabel: "h \\simeq 1.006T + \\omega\\left(2501 + 1.86T\\right) \\tag{10}", source: "selection-formula" }
+      ],
+      createdAt: "2026-06-28T00:00:00+09:00",
+      updatedAt: "2026-06-28T00:00:00+09:00"
     }
   }
 };
