@@ -14,12 +14,24 @@ This is a static Japanese study wiki. It does not call an external AI API. Codex
 ## Editing Rules
 
 - Keep the project static and GitHub Pages friendly.
+- Use plain HTML, CSS, and JavaScript only.
+- Do not add React, Next.js, TypeScript, bundlers, package managers, or framework-specific structure.
+- Avoid large architecture changes. Preserve the existing design, layout model, and user workflows as much as possible.
+- Keep edits scoped to the minimum files needed for the requested change.
 - Do not add external API calls, server dependencies, build tools, or `localStorage`.
 - Netlify/private encrypted site support has been removed. Do not reintroduce `private_index.html`, `netlify.toml`, encryption scripts, or `private_site`.
 - Treat `data.js` as public content. Do not add private notes, secrets, passwords, API keys, or personal confidential information.
 - Preserve existing document IDs unless the user explicitly asks for a new document.
 - When regenerating a document, keep its `id`, `createdAt`, `parentLinks`, and existing `linkedDocId` relationships. Update `updatedAt`.
 - When adding a child document, update matching `elements` in existing documents with `linkedDocId`.
+
+## Work Priorities
+
+1. Fix visible layout or rendering problems first.
+2. Do not break existing features.
+3. Keep the code simple.
+4. Keep explanations and generated request prompts concise to reduce token use.
+5. After changes, briefly state which files changed.
 
 ## Document Writing Rules
 
