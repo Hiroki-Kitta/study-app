@@ -2616,70 +2616,260 @@ $$
       id: "nernst-planck-equation",
       key: "nernstplanck式",
       title: "Nernst-Planck式",
-      summary: "Nernst-Planck式は、イオンの移動を拡散、移流、泳動の和として表す輸送方程式です。めっき解析では金属イオンや添加剤の濃度分布、濃度枯渇、三次電流分布を扱う基礎になります。",
+      summary: "Nernst-Planck式は、溶液中のイオン流束を拡散、泳動、移流の和として表す輸送方程式です。めっき解析では、金属イオンや添加剤の濃度分布、表面濃度、濃度枯渇、限界電流、三次電流分布を扱う基礎になります。",
       markdown: `## Nernst-Planck式とは
-Nernst-Planck式は、溶液中のイオン流束を表す式です。イオンは濃度差で拡散し、液流れで移流され、電場によって泳動します。この三つを合わせて、各イオン種がどの向きにどれだけ移動するかを表します。
+Nernst-Planck式は、溶液中のイオンがどの向きにどれだけ移動するかを表す輸送方程式です。イオンは、濃度差によって拡散し、電場によって泳動し、液体の流れによって移流されます。Nernst-Planck式は、この三つの寄与を一つの流束として足し合わせます。
 
-めっきでは、金属イオンがカソード表面で消費されます。Nernst-Planck式を使うと、その消費に対して溶液中からどれだけ供給されるかを計算できます。
+めっきでは、カソード表面で金属イオンが消費されます。供給が追いつかないと表面濃度が低下し、濃度過電圧、限界電流、焦げ、穴奥の膜厚不足が起こります。Nernst-Planck式を使うと、電極反応で消費されるイオンが、電解液中からどの程度供給されるかを計算できます。
 
-## 三つの流束
-拡散流束は、濃度勾配に比例します。濃度が高い場所から低い場所へ移動する効果です。
-
-移流流束は、液体の速度と濃度の積で表されます。液が流れることでイオンが運ばれます。
-
-泳動流束は、イオンの電荷、移動度、電場、濃度に関係します。電場が強いほど、荷電粒子は電気的な力を受けて移動します。
-
-## 電気的中性と支持電解質
-電解液は多くの場合、局所的にはほぼ電気的中性を保ちます。また支持電解質が十分多いと、電場による濃度分極を簡略化できる場合があります。
-
-そのため実務解析では、完全なNernst-Planck式を全イオンに解く場合もあれば、金属イオンだけを移流拡散方程式で扱う場合もあります。どこまで詳細化するかは、目的と必要精度で決めます。
-
-## めっき解析での意味
-Nernst-Planck式は、三次電流分布の基礎です。濃度変化を無視できない場合、電極反応速度は表面濃度に依存します。表面濃度を求めるには、液中のイオン輸送を解く必要があります。
-
-式を理解するとは、単に項を覚えることではありません。拡散、移流、泳動のどれが支配的で、どの仮定なら簡略化できるかを判断できることです。
-
-## 数式で見るNernst-Planck式
-イオン種 $i$ の流束 $\\mathbf{N}_i$ は、拡散、泳動、移流の和として次のように表されます。
+## イオン流束の基本形
+イオン種 $i$ の濃度を $c_i$、流束を $\\mathbf{N}_i$ とします。流束の単位は、代表的には $\\mathrm{mol}\\,\\mathrm{m}^{-2}\\,\\mathrm{s}^{-1}$ です。Nernst-Planck式は、次の形で書かれます。
 
 $$
 \\mathbf{N}_i =
--D_i \\nabla c_i
-- z_i \\mu_i F c_i \\nabla \\phi_l
-+ c_i \\mathbf{u} \\tag{1}
+-D_i\\nabla c_i
+-z_i\\frac{D_iF}{RT}c_i\\nabla\\phi
++c_i\\mathbf{u} \\tag{1}
 $$
 
-第1項は濃度勾配による拡散、第2項は電場による泳動、第3項は流れによる移流です。
+$D_i$ は拡散係数、$z_i$ はイオン価数、$F$ はファラデー定数、$R$ は気体定数、$T$ は絶対温度、$\\phi$ は電位、$\\mathbf{u}$ は液流速です。
 
-濃度場は、保存式と組み合わせて解きます。
+右辺第一項が拡散、第二項が泳動、第三項が移流です。符号は、電位 $\\phi$ と電場 $\\mathbf{E}=-\\nabla\\phi$ の定義に依存します。式 (1) では、電位勾配 $\\nabla\\phi$ を使って泳動項を書いています。
 
-$$
-\\frac{\\partial c_i}{\\partial t} + \\nabla \\cdot \\mathbf{N}_i = R_i \\tag{2}
-$$
-
-電流密度は、各イオンの流束が運ぶ電荷の和として表されます。
+## 拡散項
+拡散項は、濃度の高い場所から低い場所へ物質が移動する効果です。
 
 $$
-\\mathbf{i}_l = F \\sum_i z_i \\mathbf{N}_i \\tag{3}
+\\mathbf{N}_{i,\\mathrm{diff}}
+=
+-D_i\\nabla c_i \\tag{2}
 $$
 
-支持電解質が十分多い場合は、泳動や電気的中性の扱いを簡略化し、金属イオンについて移流拡散方程式だけを解くこともあります。どの項を残すかが、モデルの仮定そのものです。`,
+負号は、濃度が増える向き $\\nabla c_i$ とは逆向きに流束が向かうことを表します。カソード表面で金属イオンが消費されると、表面濃度 $c_{\\mathrm{s}}$ が低下し、バルクから表面へ拡散流束が生じます。
+
+拡散だけを単純な一次元拡散層で近似すると、金属イオン $M$ の供給流束は
+
+$$
+N_M \\simeq D_M\\frac{c_{\\mathrm{b}} - c_{\\mathrm{s}}}{\\delta} \\tag{3}
+$$
+
+と書けます。$c_{\\mathrm{b}}$ はバルク濃度、$\\delta$ は拡散層厚さです。
+
+## 泳動項
+泳動項は、電場によって荷電粒子が移動する効果です。
+
+$$
+\\mathbf{N}_{i,\\mathrm{mig}}
+=
+-z_i\\frac{D_iF}{RT}c_i\\nabla\\phi \\tag{4}
+$$
+
+正イオンと負イオンでは、電場に対して動く向きが逆になります。価数 $z_i$ が大きく、電位勾配が大きく、濃度が高いほど泳動流束は大きくなります。
+
+式 (4) は、イオン移動度 $u_i^{\\mathrm{mob}}$ を使って
+
+$$
+\\mathbf{N}_{i,\\mathrm{mig}}
+=
+-z_i u_i^{\\mathrm{mob}}F c_i\\nabla\\phi \\tag{5}
+$$
+
+と書くこともあります。希薄溶液の近似では、Nernst-Einstein関係
+
+$$
+u_i^{\\mathrm{mob}} = \\frac{D_i}{RT} \\tag{6}
+$$
+
+を使って、式 (4) の形にできます。
+
+## 移流項
+移流項は、液体の流れがイオンを運ぶ効果です。
+
+$$
+\\mathbf{N}_{i,\\mathrm{conv}}
+=
+c_i\\mathbf{u} \\tag{7}
+$$
+
+撹拌、噴流、ワークの揺動、ポンプ循環が強いほど、表面近くに新しい液が供給されやすくなります。深穴やビアの内部では、流速が小さくなりやすいため、移流による供給が弱く、拡散に頼る割合が大きくなります。
+
+## 濃度保存式
+Nernst-Planck式は、濃度保存式と組み合わせて使います。イオン種 $i$ の体積内生成速度を $R_i$ とすると、
+
+$$
+\\frac{\\partial c_i}{\\partial t}
++ \\nabla\\cdot\\mathbf{N}_i
+= R_i \\tag{8}
+$$
+
+です。液中で化学反応がなく、定常状態であれば、
+
+$$
+\\nabla\\cdot\\mathbf{N}_i = 0 \\tag{9}
+$$
+
+となります。電極表面では、反応による消費や生成を境界条件として与えます。
+
+## 電流密度との関係
+イオン流束は電荷を運ぶため、電流密度と結びつきます。電解液中の電流密度 $\\mathbf{i}_{\\mathrm{l}}$ は、各イオン流束が運ぶ電荷の和として
+
+$$
+\\mathbf{i}_{\\mathrm{l}}
+=
+F\\sum_i z_i\\mathbf{N}_i \\tag{10}
+$$
+
+と書けます。定常状態で電解液中に電荷が蓄積しないなら、
+
+$$
+\\nabla\\cdot\\mathbf{i}_{\\mathrm{l}} = 0 \\tag{11}
+$$
+
+です。電位場と濃度場を同時に解くときは、式 (8) と式 (10)、必要に応じて電気的中性条件や Poisson方程式を組み合わせます。
+
+## 電気的中性とPoisson方程式
+多くの電解液では、電極近傍の非常に薄い電気二重層を除くと、溶液内部はほぼ電気的中性です。この近似は
+
+$$
+\\sum_i z_i c_i \\simeq 0 \\tag{12}
+$$
+
+と表せます。電気的中性を仮定すると、溶液内部で大きな空間電荷を解かずに済むため、計算が簡単になります。
+
+一方、電気二重層や希薄溶液の空間電荷を明示的に扱う場合は、電位と電荷密度を Poisson方程式で結びます。
+
+$$
+-\\nabla\\cdot\\left(\\varepsilon\\nabla\\phi\\right)
+=
+F\\sum_i z_i c_i \\tag{13}
+$$
+
+$\\varepsilon$ は誘電率です。通常のめっき槽スケールでは、電気的中性近似を使うことが多いですが、微小電極、ナノスケール、電気二重層を詳しく見る解析では Poisson-Nernst-Planck 型の扱いが必要になることがあります。
+
+## 支持電解質が多い場合
+めっき浴には、導電性を高めるために支持電解質が多く入っていることがあります。支持電解質が十分に多いと、電流の大部分を支持電解質イオンが運び、金属イオンの泳動寄与を簡略化できる場合があります。
+
+このとき、金属イオンについては拡散と移流だけを残し、
+
+$$
+\\mathbf{N}_M
+\\simeq
+-D_M\\nabla c_M
++c_M\\mathbf{u} \\tag{14}
+$$
+
+とする移流拡散近似を使うことがあります。保存式に代入すると、
+
+$$
+\\frac{\\partial c_M}{\\partial t}
++ \\nabla\\cdot\\left(c_M\\mathbf{u}\\right)
+=
+\\nabla\\cdot\\left(D_M\\nabla c_M\\right) \\tag{15}
+$$
+
+です。非圧縮流れで $\\nabla\\cdot\\mathbf{u}=0$、$D_M$ が一定なら、
+
+$$
+\\frac{\\partial c_M}{\\partial t}
++ \\mathbf{u}\\cdot\\nabla c_M
+=
+D_M\\nabla^2 c_M \\tag{16}
+$$
+
+となります。これは、よく使われる移流拡散方程式です。
+
+## 電極表面の境界条件
+カソード表面では、金属イオンが還元されて消費されます。金属イオン $M^{z+}$ の析出反応を
+
+$$
+M^{z+} + z e^{-} \\rightarrow M \\tag{17}
+$$
+
+と書くと、表面での金属イオン消費流束と反応電流密度 $j$ は
+
+$$
+-\\mathbf{n}\\cdot\\mathbf{N}_M
+=
+\\frac{\\eta_{\\mathrm{I}}j}{zF} \\tag{18}
+$$
+
+で結びつきます。$\\mathbf{n}$ は電解液側へ向かう法線、$\\eta_{\\mathrm{I}}$ は電流効率です。副反応が無視できる場合は $\\eta_{\\mathrm{I}}\\simeq1$ とみなせます。
+
+絶縁壁や対称面では、対象イオンが壁を通過しないので、
+
+$$
+\\mathbf{n}\\cdot\\mathbf{N}_i = 0 \\tag{19}
+$$
+
+を使います。入口では濃度を指定し、出口では拡散流束をゼロにするなど、流れ場と一緒に境界条件を選びます。
+
+## 限界電流との関係
+Nernst-Planck式は、限界電流を理解する基礎にもなります。拡散層モデルで表面濃度 $c_{\\mathrm{s}}$ が 0 に近づくと、金属イオン供給は最大になります。
+
+$$
+N_{M,\\mathrm{lim}}
+\\simeq
+D_M\\frac{c_{\\mathrm{b}}}{\\delta} \\tag{20}
+$$
+
+このとき限界電流密度は
+
+$$
+j_{\\mathrm{lim}}
+=
+zF D_M\\frac{c_{\\mathrm{b}}}{\\delta} \\tag{21}
+$$
+
+です。流れが強く拡散層が薄くなると $\\delta$ が小さくなり、$j_{\\mathrm{lim}}$ は大きくなります。穴奥やよどみでは $\\delta$ が大きくなり、限界電流が小さくなります。
+
+## めっき解析での意味
+Nernst-Planck式は、三次電流分布の基礎です。一次電流分布や二次電流分布では濃度変化を無視することがありますが、高電流密度、深穴、ビア、流れ不足、添加剤分布が重要な場合は、表面濃度を求める必要があります。
+
+表面濃度 $c_{\\mathrm{s}}$ が分かると、反応電流密度を
+
+$$
+j = f\\left(\\eta, c_{\\mathrm{s}}\\right) \\tag{22}
+$$
+
+のように過電圧と濃度の関数として扱えます。これにより、濃度枯渇、限界電流、添加剤不足、穴奥の膜厚不足を予測しやすくなります。
+
+## どの項を残すか
+Nernst-Planck式をそのまま全イオンに解くと、必要な物性値、境界条件、数値計算の負荷が増えます。そのため実務では、目的に応じて項を省略します。
+
+濃度差が支配的なら拡散項が重要です。撹拌や噴流が効くなら移流項が重要です。支持電解質が少ない、電場が強い、イオン電流の担い手を詳しく見たい場合は泳動項が重要です。
+
+簡略化の判断は、式を覚えることよりも重要です。どの項を残すかは、「何が膜厚や濃度分布を支配しているか」という物理判断そのものです。
+
+## 注意点
+Nernst-Planck式を使うときは、濃度、電位、流速、反応速度式の境界条件を整合させる必要があります。電極表面で消費した金属イオン量と、ファラデーの法則から計算される反応電流が一致していなければ、物質収支が崩れます。
+
+また、実浴では活量係数、濃厚溶液効果、錯体形成、添加剤吸着、pH変化、気泡、温度変化が効くことがあります。標準的な Nernst-Planck式は理想希薄溶液に近い形なので、濃厚なめっき浴では有効拡散係数や経験的な補正を使う場合があります。
+
+Nernst-Planck式を理解するとは、拡散、泳動、移流を一つの流束式として読むことに加えて、支持電解質や電気的中性の仮定により、どこまで簡略化できるかを判断できることです。`,
       elements: [
-        { label: "イオン流束", key: "イオン流束", reason: "単位面積を通るイオン量を理解するため。", category: "輸送現象", difficulty: "標準", linkedDocId: null },
+        { label: "イオン流束", key: "イオン流束", reason: "単位面積を通るイオン量をベクトル量として理解するため。", category: "輸送現象", difficulty: "標準", linkedDocId: null },
         { label: "拡散項", key: "拡散項", reason: "濃度勾配による輸送を理解するため。", category: "輸送現象", difficulty: "基礎", linkedDocId: null },
-        { label: "移流項", key: "移流項", reason: "流れによる輸送を理解するため。", category: "輸送現象", difficulty: "標準", linkedDocId: "advection-term" },
-        { label: "泳動項", key: "泳動項", reason: "電場によるイオン輸送を理解するため。", category: "電気化学", difficulty: "標準", linkedDocId: null },
-        { label: "イオン移動度", key: "イオン移動度", reason: "電場でイオンが動きやすい度合いを理解するため。", category: "物性", difficulty: "標準", linkedDocId: null },
-        { label: "電気的中性", key: "電気的中性", reason: "溶液中の電荷バランスの仮定を理解するため。", category: "電気化学", difficulty: "標準", linkedDocId: null },
-        { label: "支持電解質", key: "支持電解質", reason: "電導性を高め泳動効果を簡略化する役割を理解するため。", category: "化学", difficulty: "標準", linkedDocId: null },
-        { label: "移流拡散近似", key: "移流拡散近似", reason: "泳動を省略した簡略モデルの適用範囲を理解するため。", category: "解析", difficulty: "標準", linkedDocId: null }
+        { label: "移流項", key: "移流項", reason: "液流れによる輸送を理解するため。", category: "輸送現象", difficulty: "標準", linkedDocId: "advection-term" },
+        { label: "泳動項", key: "泳動項", reason: "電場による荷電イオンの輸送を理解するため。", category: "電気化学", difficulty: "標準", linkedDocId: null },
+        { label: "イオン移動度", key: "イオン移動度", reason: "電場に対するイオンの動きやすさを拡散係数と結びつけるため。", category: "物性", difficulty: "標準", linkedDocId: null },
+        { label: "濃度保存式", key: "濃度保存式", reason: "流束の発散と濃度変化を結びつけるため。", category: "輸送現象", difficulty: "標準", linkedDocId: null },
+        { label: "電流密度", key: "電流密度", reason: "イオン流束が運ぶ電荷から電解液電流を求めるため。", category: "電気化学", difficulty: "基礎", linkedDocId: null },
+        { label: "電気的中性", key: "電気的中性", reason: "溶液内部の電荷バランスを近似するため。", category: "電気化学", difficulty: "標準", linkedDocId: null },
+        { label: "Poisson方程式", key: "poisson方程式", reason: "空間電荷を明示的に扱う場合の電位方程式を理解するため。", category: "数学", difficulty: "発展", linkedDocId: null },
+        { label: "支持電解質", key: "支持電解質", reason: "導電性を高め泳動効果を簡略化する役割を理解するため。", category: "化学", difficulty: "標準", linkedDocId: null },
+        { label: "移流拡散近似", key: "移流拡散近似", reason: "泳動を省略した簡略モデルの適用範囲を理解するため。", category: "解析", difficulty: "標準", linkedDocId: null },
+        { label: "物質移動", key: "物質移動", reason: "拡散、移流、泳動が表面供給を決めることを理解するため。", category: "輸送現象", difficulty: "標準", linkedDocId: "mass-transfer" },
+        { label: "拡散層", key: "拡散層", reason: "表面濃度とバルク濃度をつなぐ近似を理解するため。", category: "輸送現象", difficulty: "標準", linkedDocId: "diffusion-layer" },
+        { label: "限界電流", key: "限界電流", reason: "表面濃度が枯渇したときの最大電流密度を理解するため。", category: "電気化学", difficulty: "標準", linkedDocId: "limiting-current" },
+        { label: "三次電流分布", key: "三次電流分布", reason: "濃度場と電位場を連成するめっき解析を理解するため。", category: "解析", difficulty: "発展", linkedDocId: "tertiary-current-distribution" },
+        { label: "電解液の流れ", key: "電解液の流れ", reason: "流速分布が移流と拡散層厚さを変える効果を理解するため。", category: "流体", difficulty: "標準", linkedDocId: "electrolyte-flow" }
       ],
-      aliases: ["Nernst-Planck式", "nernstplanck式", "Nernst Planck equation", "ネルンストプランク式"],
+      aliases: ["Nernst-Planck式", "nernstplanck式", "Nernst Planck equation", "ネルンストプランク式", "イオン輸送方程式", "Poisson-Nernst-Planck式", "PNP方程式"],
       parentLinks: [
         { docId: "plating-analysis", title: "めっき解析", elementKey: "nernst-planck式", elementLabel: "Nernst-Planck式", source: "bulk-elements" }
       ],
       createdAt: "2026-06-22T00:00:00+09:00",
-      updatedAt: "2026-06-22T00:00:00+09:00"
+      updatedAt: "2026-06-28T00:00:00+09:00"
     },
     "diffusion-layer": {
       id: "diffusion-layer",
